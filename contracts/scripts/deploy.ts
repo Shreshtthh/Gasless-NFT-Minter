@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers } from "hardhat"; // ✅ Works with @nomicfoundation/hardhat-ethers
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import "dotenv/config";
@@ -9,55 +9,75 @@ interface NetworkConfig {
   chainId: number;
 }
 
-// Network-specific USDC addresses (CORRECTED)
+// ✅ Correct testnet USDC addresses
 const networkConfigs: Record<string, NetworkConfig> = {
-  "basesepolia": {
+  sepolia: {
+    name: "Ethereum Sepolia",
+    usdcAddress: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", // Sepolia USDC
+    chainId: 11155111
+  },
+  "base-sepolia": {
     name: "Base Sepolia",
-    usdcAddress: "0x036cbd53431b2a8bd4cdd9c0fb533c8e0e2be00f", // Fixed to match config
+    usdcAddress: "0x036CBD53431b2A8bd4CdD9C0Fb533C8E0e2be00f", // Base Sepolia USDC
     chainId: 84532
   },
-  "amoy": { // Changed from polygonmumbai
-    name: "Polygon Amoy", // Updated name
-    usdcAddress: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", // Amoy USDC address
-    chainId: 80002 // Updated chain ID
-  },
-  "sepolia": {
-    name: "Ethereum Sepolia",
-    usdcAddress: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", 
-    chainId: 11155111
+  amoy: {
+    name: "Polygon Amoy",
+    usdcAddress: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", // Amoy USDC
+    chainId: 80002
   }
 };
 
 async function main() {
-  // Get deployment parameters from environment or use defaults
-  const networkName = process.env.NETWORK || "basesepolia";
+
+  console.log("🔍 Debug Info:");
+  console.log("process.env.NETWORK:", process.env.NETWORK);
+ 
+  console.log("Available networks:", Object.keys(networkConfigs));
+
+  // ✅ Get deployment parameters
+  const networkName = process.env.NETWORK || "sepolia";
   const nftName = process.env.NFT_NAME || "Gasless NFT Collection";
   const nftSymbol = process.env.NFT_SYMBOL || "GNFT";
   const maxSupply = BigInt(process.env.MAX_SUPPLY || "10000");
   const mintPrice = BigInt(process.env.MINT_PRICE || "1000000"); // 1 USDC (6 decimals)
-  
-  const networkConfig = networkConfigs[networkName];
-  if (!networkConfig) {
-    throw new Error(`Unsupported network: ${networkName}. Available networks: ${Object.keys(networkConfigs).join(', ')}`);
+
+   console.log("Resolved networkName:", networkName);
+
+  // ✅ Validate network
+  if (!(networkName in networkConfigs)) {
+    throw new Error(`Unsupported network: ${networkName}. Available: ${Object.keys(networkConfigs).join(', ')}`);
   }
 
-  console.log("Deploying GaslessNFT contract...");
-  console.log("Network:", networkConfig.name);
-  console.log("NFT Name:", nftName);
-  console.log("NFT Symbol:", nftSymbol);
-  console.log("Max Supply:", maxSupply.toString());
-  console.log("Mint Price:", mintPrice.toString(), "USDC");
-  console.log("USDC Token Address:", networkConfig.usdcAddress);
+  const networkConfig = networkConfigs[networkName];
 
-  // Get deployment account
+  console.log("🚀 Deploying GaslessNFT contract...");
+  console.log(`📋 Network: ${networkConfig.name}`);
+  console.log(`📝 NFT Name: ${nftName}`);
+  console.log(`🔤 NFT Symbol: ${nftSymbol}`);
+  console.log(`📊 Max Supply: ${maxSupply.toString()}`);
+  console.log(`💰 Mint Price: ${mintPrice.toString()} USDC`);
+  console.log(`🪙 USDC Address: ${networkConfig.usdcAddress}`);
+
+  // ✅ Get deployer and check balance
   const [deployer] = await ethers.getSigners();
+  const balance = await deployer.provider.getBalance(deployer.address);
   const network = await ethers.provider.getNetwork();
-  
-  console.log("Deployer address:", deployer.address);
-  console.log("Deployer balance:", ethers.formatEther(await deployer.provider.getBalance(deployer.address)), "ETH");
-  console.log("Chain ID:", network.chainId);
 
-  // Deploy the GaslessNFT contract
+  console.log(`\n👤 Deployer Info:`);
+  console.log(`   Address: ${deployer.address}`);
+  console.log(`   Balance: ${ethers.formatEther(balance)} ETH`);
+  console.log(`   Chain ID: ${network.chainId}`);
+
+  // ✅ Check minimum balance
+  const minBalance = ethers.parseEther("0.01");
+  if (balance < minBalance) {
+    throw new Error(`❌ Insufficient balance. Need at least 0.01 ETH, have ${ethers.formatEther(balance)} ETH`);
+  }
+
+  // ✅ Deploy contract
+  console.log("\n⏳ Deploying contract...");
+  
   const GaslessNFT = await ethers.getContractFactory("GaslessNFT");
   const gaslessNFT = await GaslessNFT.deploy(
     nftName,
@@ -67,94 +87,104 @@ async function main() {
     networkConfig.usdcAddress
   );
 
+  // ✅ Wait for deployment
+  console.log("⏳ Waiting for deployment confirmation...");
   await gaslessNFT.waitForDeployment();
   const contractAddress = await gaslessNFT.getAddress();
 
-  // Set up initial configuration
-  console.log("Setting up initial configuration...");
-  const setBaseURITx = await gaslessNFT.setBaseURI("https://api.gaslessnft.com/metadata/");
-  await setBaseURITx.wait();
+  console.log(`\n✅ Deployment successful!`);
+  console.log(`📄 Contract Address: ${contractAddress}`);
+  console.log(`🔍 Transaction Hash: ${gaslessNFT.deploymentTransaction()?.hash}`);
 
-  console.log("\n=== Deployment Successful ===");
-  console.log("GaslessNFT Contract Address:", contractAddress);
-  console.log("Contract Owner:", await gaslessNFT.owner());
-  console.log("Current Token ID:", (await gaslessNFT.getCurrentTokenId()).toString());
-  console.log("Remaining Supply:", (await gaslessNFT.getRemainingSupply()).toString());
-
-  // Create deployments directory
+  // ✅ Save deployment info
   const deploymentsDir = join(process.cwd(), "deployments", networkName);
   if (!existsSync(deploymentsDir)) {
     mkdirSync(deploymentsDir, { recursive: true });
   }
 
-  // Save deployment info to file
   const deploymentInfo = {
     network: networkConfig.name,
     networkKey: networkName,
+    chainId: network.chainId.toString(),
     contractAddress: contractAddress,
     deployerAddress: deployer.address,
+    transactionHash: gaslessNFT.deploymentTransaction()?.hash,
+    blockNumber: await ethers.provider.getBlockNumber(),
     nftName: nftName,
     nftSymbol: nftSymbol,
     maxSupply: maxSupply.toString(),
     mintPrice: mintPrice.toString(),
-    usdcToken: networkConfig.usdcAddress,
-    chainId: network.chainId.toString(),
-    deploymentBlock: (await ethers.provider.getBlockNumber()).toString(),
-    timestamp: new Date().toISOString(),
-    constructorArgs: [nftName, nftSymbol, maxSupply.toString(), mintPrice.toString(), networkConfig.usdcAddress]
+    usdcAddress: networkConfig.usdcAddress,
+    deployedAt: new Date().toISOString(),
+    constructorArgs: [
+      nftName,
+      nftSymbol,
+      maxSupply.toString(),
+      mintPrice.toString(),
+      networkConfig.usdcAddress
+    ]
   };
 
   const deploymentFilePath = join(deploymentsDir, "GaslessNFT.json");
   writeFileSync(deploymentFilePath, JSON.stringify(deploymentInfo, null, 2));
+  
+  console.log(`💾 Deployment info saved to: ${deploymentFilePath}`);
 
-  console.log("Deployment info saved to:", deploymentFilePath);
-
-  // Verification instructions
-  console.log("\n=== Next Steps ===");
-  console.log("1. Verify the contract on block explorer:");
-  console.log(`   npx hardhat verify --network ${networkName} ${contractAddress} "${nftName}" "${nftSymbol}" ${maxSupply} ${mintPrice} "${networkConfig.usdcAddress}"`);
-  console.log("\n2. Update your backend .env file with:");
-  const envVarName = networkName === 'basesepolia' ? 'NFT_CONTRACT_ADDRESS_BASE' : 
-                     networkName === 'amoy' ? 'NFT_CONTRACT_ADDRESS_POLYGON' : 
-                     'NFT_CONTRACT_ADDRESS';
+  // ✅ Next steps
+  console.log(`\n🔧 Next Steps:`);
+  
+  console.log(`1. 📋 Contract Verification:`);
+  console.log(`   npx hardhat verify --network ${networkName} ${contractAddress} "${nftName}" "${nftSymbol}" "${maxSupply}" "${mintPrice}" "${networkConfig.usdcAddress}"`);
+  
+  console.log(`\n2. 🔑 Update your backend .env:`);
+  const envVarName = networkName === 'sepolia' ? 'NFT_CONTRACT_ADDRESS_ETH_SEPOLIA' : 
+                     networkName === 'base-sepolia' ? 'NFT_CONTRACT_ADDRESS_BASE_SEPOLIA' : 
+                     networkName === 'amoy' ? 'NFT_CONTRACT_ADDRESS_POLYGON_AMOY' : 
+                     `NFT_CONTRACT_ADDRESS_${networkName.toUpperCase()}`;
   console.log(`   ${envVarName}=${contractAddress}`);
-  console.log("\n3. Authorize your backend wallet as a minter:");
-  console.log("   Call setAuthorizedMinter(BACKEND_WALLET_ADDRESS, true)");
+  
+  console.log(`\n3. 🌐 Explorer Links:`);
+  if (networkName === 'sepolia') {
+    console.log(`   Etherscan: https://sepolia.etherscan.io/address/${contractAddress}`);
+  } else if (networkName === 'base-sepolia') {
+    console.log(`   BaseScan: https://sepolia.basescan.org/address/${contractAddress}`);
+  } else if (networkName === 'amoy') {
+    console.log(`   PolygonScan: https://amoy.polygonscan.com/address/${contractAddress}`);
+  }
 
   return contractAddress;
 }
 
-// Rest of your export function stays the same...
+// ✅ Export function for custom deployments
 export async function deployWithParams(
   name: string,
   symbol: string,
   maxSupply: bigint,
   mintPrice: bigint,
-  usdcToken: string
+  usdcAddress: string
 ): Promise<string> {
-  const [deployer] = await ethers.getSigners();
-  
-  console.log(`Deploying ${name} (${symbol}) with custom parameters...`);
+  console.log(`🔧 Deploying ${name} (${symbol}) with custom parameters...`);
   
   const GaslessNFT = await ethers.getContractFactory("GaslessNFT");
-  const gaslessNFT = await GaslessNFT.deploy(name, symbol, maxSupply, mintPrice, usdcToken);
+  const gaslessNFT = await GaslessNFT.deploy(name, symbol, maxSupply, mintPrice, usdcAddress);
   
   await gaslessNFT.waitForDeployment();
   const contractAddress = await gaslessNFT.getAddress();
   
-  // Set up initial configuration
-  const setBaseURITx = await gaslessNFT.setBaseURI("https://api.gaslessnft.com/metadata/");
-  await setBaseURITx.wait();
-  
-  console.log("Custom deployment successful:", contractAddress);
+  console.log(`✅ Custom deployment successful: ${contractAddress}`);
   return contractAddress;
 }
 
+// ✅ Main execution
 if (require.main === module) {
   main()
-    .then(() => process.exit(0))
+    .then(() => {
+      console.log("\n🎉 Deployment completed successfully!");
+      process.exit(0);
+    })
     .catch((error) => {
-      console.error("Deployment failed:", error);
+      console.error("\n❌ Deployment failed:");
+      console.error(error);
       process.exit(1);
     });
 }
