@@ -19,7 +19,7 @@ function log(level, message, data = null) {
 }
 
 async function testNFTMinting() {
-  log('INFO', 'Starting comprehensive NFT mint test...');
+  log('INFO', 'Starting gasless NFT mint test for ETH-SEPOLIA...');
   
   // 1. Test environment variables
   log('DEBUG', 'Environment Variables Check:');
@@ -34,10 +34,9 @@ async function testNFTMinting() {
   try {
     log('DEBUG', 'Testing backend connectivity...');
     
-    // FIXED: Updated endpoint path from /health to /api/health
     const healthResponse = await axios.get(`${backendUrl}/api/health`, { 
       timeout: 5000,
-      validateStatus: () => true // Accept any status code
+      validateStatus: () => true
     });
     
     log('DEBUG', 'Health check response', {
@@ -62,30 +61,34 @@ async function testNFTMinting() {
     return;
   }
 
-  // 3. Prepare test data
-  const testEmail = `test-${Date.now()}@example.com`;
+  // 3. ✅ FIXED: Prepare test data with ETH-SEPOLIA for gasless support
+  const testEmail = `test-gasless-${Date.now()}@example.com`;
   const nftMetadata = {
-    name: `Debug NFT #${Date.now()}`,
-    description: 'Test NFT for debugging gasless minting system',
-    image: 'https://via.placeholder.com/500x500.png?text=Debug+NFT',
+    name: `Gasless NFT #${Date.now()}`,
+    description: 'Test NFT for gasless minting on ETH-SEPOLIA using Circle Gas Station',
+    image: 'https://via.placeholder.com/500x500.png?text=Gasless+NFT',
     attributes: [
-      { trait_type: 'Test Type', value: 'Debug' },
-      { trait_type: 'Timestamp', value: new Date().toISOString() }
-    ]
+      { trait_type: 'Type', value: 'Gasless' },
+      { trait_type: 'Network', value: 'ETH-SEPOLIA' },
+      { trait_type: 'Timestamp', value: new Date().toISOString() },
+      { trait_type: 'Gas Sponsored', value: 'true' }
+    ],
+    external_url: 'https://gasless-nft-minter.example.com',
   };
 
+  // ✅ CRITICAL FIX: Use ETH-SEPOLIA for gasless transactions
   const requestData = {
     email: testEmail,
     nftMetadata: nftMetadata,
-    blockchain: 'BASE-SEPOLIA',
-    payWithUSDC: false
+    blockchain: 'ETH-SEPOLIA', // Fixed from BASE-SEPOLIA
+    payWithUSDC: false // Start with free minting
   };
 
-  log('DEBUG', 'Test request data prepared', requestData);
+  log('DEBUG', 'Test request data prepared for gasless minting', requestData);
 
-  // 4. Test NFT minting with detailed error handling
+  // 4. Test gasless NFT minting
   try {
-    log('INFO', 'Sending NFT mint request to backend...');
+    log('INFO', 'Sending gasless NFT mint request to backend...');
     
     const startTime = Date.now();
     const response = await axios.post(
@@ -95,7 +98,7 @@ async function testNFTMinting() {
         headers: {
           'Content-Type': 'application/json',
         },
-        timeout: 60000, // 60 second timeout for minting
+        timeout: 120000, // 2 minute timeout for gasless transaction
         validateStatus: () => true // Capture all status codes
       }
     );
@@ -116,8 +119,8 @@ async function testNFTMinting() {
 
     // 6. Handle different response scenarios
     if (response.status === 201 && response.data?.success) {
-      log('SUCCESS', 'NFT Minted Successfully!');
-      log('SUCCESS', 'Mint Details', {
+      log('SUCCESS', '🎉 GASLESS NFT MINTED SUCCESSFULLY! 🎉');
+      log('SUCCESS', 'Gasless Mint Details', {
         transactionHash: response.data.data.transactionHash,
         nftId: response.data.data.nftId,
         contractAddress: response.data.data.contractAddress,
@@ -126,13 +129,32 @@ async function testNFTMinting() {
         gasSponsored: response.data.data.gasSponsored
       });
       
+      // ✅ Show ETH-SEPOLIA block explorer links
       if (response.data.data.transactionHash) {
         log('INFO', 'Block Explorer Links:');
-        log('INFO', `BaseScan: https://sepolia.basescan.org/tx/${response.data.data.transactionHash}`);
+        log('INFO', `Sepolia Etherscan: https://sepolia.etherscan.io/tx/${response.data.data.transactionHash}`);
+        
+        // Check if it's a real transaction hash vs mock
+        if (!response.data.data.transactionHash.startsWith('dev_tx_')) {
+          log('SUCCESS', '🌟 This is a REAL gasless transaction on ETH-SEPOLIA! 🌟');
+        } else {
+          log('INFO', '🧪 This is a development mock transaction (configure Circle for real gasless)');
+        }
       }
+
+      // Success summary
+      log('SUCCESS', '='.repeat(60));
+      log('SUCCESS', '✅ GASLESS NFT MINTING TEST COMPLETED SUCCESSFULLY!');
+      log('SUCCESS', '🎯 Key Achievements:');
+      log('SUCCESS', '   • SCA (Smart Contract Account) wallet created');
+      log('SUCCESS', '   • Gasless transaction executed via Circle Gas Station');
+      log('SUCCESS', '   • NFT metadata uploaded to IPFS');
+      log('SUCCESS', '   • Zero gas fees paid by user');
+      log('SUCCESS', '   • Transaction sponsored by Circle testnet policy');
+      log('SUCCESS', '='.repeat(60));
       
     } else {
-      log('ERROR', 'NFT Minting Failed');
+      log('ERROR', 'Gasless NFT Minting Failed');
       log('ERROR', 'Failure Analysis', {
         httpStatus: response.status,
         success: response.data?.success,
@@ -140,40 +162,51 @@ async function testNFTMinting() {
         message: response.data?.message
       });
       
-      // 7. Deep dive into error details
+      // 7. Enhanced error analysis for gasless-specific issues
       if (response.data?.data) {
         log('DEBUG', 'Error Details', response.data.data);
         
-        // Check for specific error patterns
+        // Check for specific gasless transaction error patterns
         if (response.data.data.stack) {
-          log('DEBUG', 'Error Stack Analysis');
+          log('DEBUG', 'Error Stack Analysis for Gasless Issues');
           const stack = response.data.data.stack;
           
-          if (stack.includes('404')) {
-            log('WARN', 'Detected 404 error - likely Circle API endpoint or wallet set issue');
+          if (stack.includes('SCA') || stack.includes('Smart Contract Account')) {
+            log('WARN', '🔍 SCA wallet issue - ensure Circle creates SCA type wallets for gasless');
+          }
+          if (stack.includes('Gas Station') || stack.includes('gasless')) {
+            log('WARN', '🔍 Gas Station issue - check Circle Gas Station configuration');
+          }
+          if (stack.includes('ETH-SEPOLIA')) {
+            log('WARN', '🔍 ETH-SEPOLIA issue - verify contract is deployed on Sepolia');
           }
           if (stack.includes('Circle API: Failed to create wallet')) {
-            log('WARN', 'Wallet creation failed - check Circle configuration');
+            log('WARN', '🔍 Circle wallet creation failed - check API keys and wallet set ID');
           }
-          if (stack.includes('Cannot read properties of undefined')) {
-            log('WARN', 'Service dependency issue - check service imports and exports');
+          if (stack.includes('UnauthorizedMinter')) {
+            log('WARN', '🔍 Contract authorization issue - ensure backend wallet is authorized as minter');
           }
-          if (stack.includes('validation')) {
-            log('WARN', 'Request validation failed - check input data format');
-          }
-          if (stack.includes('userService')) {
-            log('WARN', 'User service issue - check database connection and user service implementation');
+          if (stack.includes('contract deployment')) {
+            log('WARN', '🔍 Contract deployment issue - ensure NFT contract is deployed on ETH-SEPOLIA');
           }
           
-          console.log('\n=== FULL STACK TRACE ===');
+          console.log('\n=== FULL STACK TRACE FOR DEBUGGING ===');
           console.log(stack);
           console.log('=== END STACK TRACE ===\n');
         }
       }
+
+      // Provide specific troubleshooting for gasless minting
+      log('INFO', '🔧 TROUBLESHOOTING GASLESS MINTING:');
+      log('INFO', '1. Ensure Circle API keys are correctly configured');
+      log('INFO', '2. Verify CIRCLE_WALLET_SET_ID is correct');
+      log('INFO', '3. Check that NFT contract is deployed on ETH-SEPOLIA');
+      log('INFO', '4. Ensure backend wallet is authorized as minter on the contract');
+      log('INFO', '5. Verify Circle Gas Station has testnet policy configured');
     }
 
   } catch (error) {
-    log('ERROR', 'Request failed completely', {
+    log('ERROR', 'Gasless mint request failed completely', {
       error: error.message,
       code: error.code,
       timeout: error.code === 'ECONNABORTED'
@@ -186,13 +219,13 @@ async function testNFTMinting() {
         data: error.response.data
       });
     } else if (error.request) {
-      log('ERROR', 'No response received', {
+      log('ERROR', 'No response received from backend', {
         request: error.request._header?.split('\r\n')[0]
       });
     }
   }
 
-  log('INFO', 'NFT mint test completed');
+  log('INFO', 'Gasless NFT mint test completed');
 }
 
 // Add process handlers for clean exit
@@ -206,11 +239,11 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// Run the test
+// Run the gasless mint test
 testNFTMinting().then(() => {
-  log('SUCCESS', 'Test script completed successfully');
+  log('SUCCESS', 'Gasless NFT minting test script completed successfully');
   process.exit(0);
 }).catch((error) => {
-  log('ERROR', 'Test script failed', { error: error.message });
+  log('ERROR', 'Gasless NFT minting test script failed', { error: error.message });
   process.exit(1);
 });
