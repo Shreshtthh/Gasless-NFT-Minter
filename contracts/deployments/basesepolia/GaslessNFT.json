@@ -1,0 +1,21 @@
+{
+  "network": "Base Sepolia",
+  "networkKey": "basesepolia",
+  "contractAddress": "0x075944f63b060a2a18f38382220A8d8e150c1810",
+  "deployerAddress": "0xA2c6f9921B19474e6ab7a8f8C6d7B63510efDBA7",
+  "nftName": "Gasless NFT Collection",
+  "nftSymbol": "GNFT",
+  "maxSupply": "10000",
+  "mintPrice": "1000000",
+  "usdcToken": "0x036cbd53431b2a8bd4cdd9c0fb533c8e0e2be00f",
+  "chainId": "84532",
+  "deploymentBlock": "30469255",
+  "timestamp": "2025-09-01T06:06:39.636Z",
+  "constructorArgs": [
+    "Gasless NFT Collection",
+    "GNFT",
+    "10000",
+    "1000000",
+    "0x036cbd53431b2a8bd4cdd9c0fb533c8e0e2be00f"
+  ]
+}

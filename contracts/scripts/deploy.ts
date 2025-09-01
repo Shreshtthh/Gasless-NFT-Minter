@@ -9,17 +9,17 @@ interface NetworkConfig {
   chainId: number;
 }
 
-// Network-specific USDC addresses
+// Network-specific USDC addresses (CORRECTED)
 const networkConfigs: Record<string, NetworkConfig> = {
   "basesepolia": {
     name: "Base Sepolia",
-    usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    usdcAddress: "0x036cbd53431b2a8bd4cdd9c0fb533c8e0e2be00f", // Fixed to match config
     chainId: 84532
   },
-  "polygonmumbai": {
-    name: "Polygon Mumbai", 
-    usdcAddress: "0x9999f7fea5938fd3b1e26a12c3f2fb024e194f97",
-    chainId: 80001
+  "amoy": { // Changed from polygonmumbai
+    name: "Polygon Amoy", // Updated name
+    usdcAddress: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582", // Amoy USDC address
+    chainId: 80002 // Updated chain ID
   },
   "sepolia": {
     name: "Ethereum Sepolia",
@@ -38,7 +38,7 @@ async function main() {
   
   const networkConfig = networkConfigs[networkName];
   if (!networkConfig) {
-    throw new Error(`Unsupported network: ${networkName}`);
+    throw new Error(`Unsupported network: ${networkName}. Available networks: ${Object.keys(networkConfigs).join(', ')}`);
   }
 
   console.log("Deploying GaslessNFT contract...");
@@ -114,14 +114,17 @@ async function main() {
   console.log("1. Verify the contract on block explorer:");
   console.log(`   npx hardhat verify --network ${networkName} ${contractAddress} "${nftName}" "${nftSymbol}" ${maxSupply} ${mintPrice} "${networkConfig.usdcAddress}"`);
   console.log("\n2. Update your backend .env file with:");
-  console.log(`   NFT_CONTRACT_ADDRESS=${contractAddress}`);
+  const envVarName = networkName === 'basesepolia' ? 'NFT_CONTRACT_ADDRESS_BASE' : 
+                     networkName === 'amoy' ? 'NFT_CONTRACT_ADDRESS_POLYGON' : 
+                     'NFT_CONTRACT_ADDRESS';
+  console.log(`   ${envVarName}=${contractAddress}`);
   console.log("\n3. Authorize your backend wallet as a minter:");
   console.log("   Call setAuthorizedMinter(BACKEND_WALLET_ADDRESS, true)");
 
   return contractAddress;
 }
 
-// Export function for custom deployment
+// Rest of your export function stays the same...
 export async function deployWithParams(
   name: string,
   symbol: string,
@@ -147,7 +150,6 @@ export async function deployWithParams(
   return contractAddress;
 }
 
-// Run deployment if this script is executed directly
 if (require.main === module) {
   main()
     .then(() => process.exit(0))
