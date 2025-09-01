@@ -1,103 +1,193 @@
-import express, { Request, Response } from 'express';
-import { WalletController, walletValidation } from '../controllers/walletController';
-import { asyncHandler } from '../middleware/auth';
+import { Router, Request, Response } from 'express';
+import { ApiResponse, WalletBalance, CircleWallet } from '../types';
+import { asyncHandler } from '../middleware/errorHandler';
+import { validateWalletCreation, validateWalletBalance } from '../middleware/validation';
+import { authenticateUser } from '../middleware/auth';
+import { circleService } from '../services/circleService';
+import { userService } from '../services/userService';
+import { logger } from '../utils/logger';
 
-const router = express.Router();
-const walletController = new WalletController();
-
-/**
- * @route   POST /api/wallet/create
- * @desc    Create a new Circle Wallet for a user
- * @access  Public
- */
-router.post('/create', 
-    walletValidation.createWallet,
-    asyncHandler(async (req: Request, res: Response) => {
-        await walletController.createWallet(req, res);
-    })
-);
+const router = Router();
 
 /**
- * @route   GET /api/wallet/:userId
- * @desc    Get wallet details by user ID
- * @access  Public
- * @query   walletId - Circle Wallet ID (required)
+ * Create a new Circle wallet for a user
  */
-router.get('/:userId', 
-    walletValidation.getWallet,
-    asyncHandler(async (req: Request, res: Response) => {
-        await walletController.getWallet(req, res);
-    })
-);
-
-/**
- * @route   GET /api/wallet/:userId/balance
- * @desc    Get wallet balance for a specific network
- * @access  Public
- * @query   walletId - Circle Wallet ID (required)
- * @query   network - Network identifier (optional, default: BASE-SEPOLIA)
- */
-router.get('/:userId/balance', 
-    walletValidation.getBalance,
-    asyncHandler(async (req: Request, res: Response) => {
-        await walletController.getWalletBalance(req, res);
-    })
-);
-
-/**
- * @route   GET /api/wallet/:userId/nfts
- * @desc    Get user's NFTs across all networks
- * @access  Public
- * @query   walletId - Circle Wallet ID (required)
- * @query   network - Network identifier (optional, checks all if not specified)
- */
-router.get('/:userId/nfts', 
-    walletValidation.getWallet,
-    asyncHandler(async (req: Request, res: Response) => {
-        await walletController.getUserNFTs(req, res);
-    })
-);
-
-/**
- * @route   POST /api/wallet/challenge
- * @desc    Create authentication challenge for wallet
- * @access  Public
- */
-router.post('/challenge', 
-    walletValidation.createChallenge,
-    asyncHandler(async (req: Request, res: Response) => {
-        await walletController.createChallenge(req, res);
-    })
-);
-
-/**
- * @route   POST /api/wallet/verify
- * @desc    Verify signed challenge
- * @access  Public
- */
-router.post('/verify', 
-    walletValidation.verifyChallenge,
-    asyncHandler(async (req: Request, res: Response) => {
-        await walletController.verifyChallenge(req, res);
-    })
-);
-
-/**
- * @route   GET /api/wallet/networks
- * @desc    Get supported blockchain networks
- * @access  Public
- */
-router.get('/networks', asyncHandler(async (req: Request, res: Response) => {
-    await walletController.getSupportedNetworks(req, res);
+router.post('/create', validateWalletCreation, asyncHandler(async (req: Request, res: Response) => {
+  const { email, blockchains = ['ETH', 'MATIC'] } = req.body;
+  
+  logger.info('Wallet creation request', { email, blockchains });
+  
+  // Get or create user
+  let user = await userService.getUserByEmail(email);
+  if (!user) {
+    user = await userService.createUser(email);
+  }
+  
+  // Check if user already has a wallet
+  if (user.walletId) {
+    const existingWallet = await circleService.getWallet(user.walletId);
+    if (existingWallet) {
+      const response: ApiResponse<{ wallet: CircleWallet }> = {
+        success: true,
+        message: 'User already has a wallet',
+        data: {
+          wallet: existingWallet,
+        },
+      };
+      return res.json(response);
+    }
+  }
+  
+  // Create new Circle wallet
+  const wallets = await circleService.createWallet(blockchains);
+  const primaryWallet = wallets[0]; // Use first wallet as primary
+  
+  // Update user with wallet information
+  if (primaryWallet) {
+    await userService.updateUserWallet(
+      user.id,
+      primaryWallet.id,
+      primaryWallet.address
+    );
+  }
+  
+  const response: ApiResponse<{ wallets: CircleWallet[] }> = {
+    success: true,
+    message: 'Wallets created successfully',
+    data: {
+      wallets,
+    },
+  };
+  
+  res.status(201).json(response);
 }));
 
 /**
- * @route   GET /api/wallet/gas-station/info
- * @desc    Get Gas Station information and statistics
- * @access  Public
+ * Get wallet information by email
  */
-router.get('/gas-station/info', asyncHandler(async (req: Request, res: Response) => {
-    await walletController.getGasStationInfo(req, res);
+router.get('/info/:email', asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.params;
+  
+  // Get user by email
+  const user = await userService.getUserByEmail(email);
+  
+  if (!user || !user.walletId) {
+    const response: ApiResponse = {
+      success: false,
+      message: 'User or wallet not found',
+    };
+    return res.status(404).json(response);
+  }
+  
+  // Get wallet information from Circle
+  const wallet = await circleService.getWallet(user.walletId);
+  
+  if (!wallet) {
+    const response: ApiResponse = {
+      success: false,
+      message: 'Wallet not found',
+    };
+    return res.status(404).json(response);
+  }
+  
+  const response: ApiResponse<{ wallet: CircleWallet; user: { email: string } }> = {
+    success: true,
+    message: 'Wallet information retrieved successfully',
+    data: {
+      wallet,
+      user: {
+        email: user.email,
+      },
+    },
+  };
+  
+  res.json(response);
 }));
 
-export default router;
+/**
+ * Get wallet balance
+ */
+router.get('/balance/:walletId', validateWalletBalance, asyncHandler(async (req: Request, res: Response) => {
+  const { walletId } = req.params;
+  
+  logger.info('Balance check request', { walletId });
+  
+  // Get wallet balance from Circle
+  const balance = await circleService.getWalletBalance(walletId);
+  
+  const response: ApiResponse<{ balance: WalletBalance }> = {
+    success: true,
+    message: 'Wallet balance retrieved successfully',
+    data: {
+      balance,
+    },
+  };
+  
+  res.json(response);
+}));
+
+/**
+ * Get all wallets for the wallet set
+ */
+router.get('/all', asyncHandler(async (req: Request, res: Response) => {
+  logger.info('Get all wallets request');
+  
+  // Get all wallets from Circle
+  const wallets = await circleService.getWallets();
+  
+  const response: ApiResponse<{ wallets: CircleWallet[]; count: number }> = {
+    success: true,
+    message: 'Wallets retrieved successfully',
+    data: {
+      wallets,
+      count: wallets.length,
+    },
+  };
+  
+  res.json(response);
+}));
+
+/**
+ * Transfer USDC between wallets (for demo purposes)
+ */
+router.post('/transfer-usdc', asyncHandler(async (req: Request, res: Response) => {
+  const { fromWalletId, toAddress, amount, blockchain } = req.body;
+  
+  if (!fromWalletId || !toAddress || !amount || !blockchain) {
+    const response: ApiResponse = {
+      success: false,
+      error: 'Missing required parameters: fromWalletId, toAddress, amount, blockchain',
+    };
+    return res.status(400).json(response);
+  }
+  
+  logger.info('USDC transfer request', {
+    fromWalletId,
+    toAddress,
+    amount,
+    blockchain,
+  });
+  
+  // Map blockchain names to Circle blockchain types
+  const circleBlockchain = blockchain === 'base' ? 'ETH' : 'MATIC';
+  
+  // Execute USDC transfer
+  const transaction = await circleService.transferUSDC(
+    fromWalletId,
+    toAddress,
+    amount,
+    circleBlockchain
+  );
+  
+  const response: ApiResponse<{ transaction: any }> = {
+    success: true,
+    message: 'USDC transfer initiated successfully',
+    data: {
+      transaction,
+    },
+  };
+  
+  res.json(response);
+}));
+
+export { router as walletRoutes };
