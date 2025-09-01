@@ -1,0 +1,62 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+out/
+
+# Hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+debug.log
+error.log
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE / Editor settings
+.vscode/
+.idea/
+*.swp
+
+# Temporary files
+*.tmp
+*.temp
+*.pid
+*.seed
+*.tgz
+*.lock
+
+# Coverage reports
+coverage/
+coverage.json
+lcov-report/
+
+# Vite cache
+.vite/
+vite.config.ts.timestamp-*
+
+# TypeScript
+*.tsbuildinfo
+
+# Optional lock files (uncomment as needed)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
