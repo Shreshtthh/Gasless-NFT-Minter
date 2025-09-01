@@ -1,0 +1,25 @@
+{
+  "name": "My Awesome NFT #1",
+  "description": "This is my first gasless NFT minted through Circle API!",
+  "image": "https://via.placeholder.com/500x500/FF6B6B/white?text=AWESOME+NFT",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Power Level",
+      "value": "9999"
+    },
+    {
+      "trait_type": "Collection",
+      "value": "Gasless Minter"
+    },
+    {
+      "trait_type": "Mint Method",
+      "value": "Circle API"
+    }
+  ],
+  "external_url": "https://your-website.com",
+  "background_color": "FF6B6B"
+}
